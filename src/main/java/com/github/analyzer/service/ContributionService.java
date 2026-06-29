@@ -7,7 +7,9 @@ import com.github.analyzer.repository.ContributionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +46,42 @@ public class ContributionService {
 
     public void delete(Long id) {
         contributionRepository.deleteById(id);
+    }
+
+    public Map<String, Object> getStats(Long userId) {
+        Map<String, Object> stats = new LinkedHashMap<>();
+
+        // Total contributions and points
+        stats.put("totalContributions", contributionRepository.countByUserId(userId));
+        stats.put("totalPoints", contributionRepository.sumPointsByUserId(userId));
+
+        // Breakdown by type (commit, issue, pull_request)
+        Map<String, Long> byType = new LinkedHashMap<>();
+        for (Object[] row : contributionRepository.countByType(userId))
+            byType.put((String) row[0], (Long) row[1]);
+        stats.put("byType", byType);
+
+        // Top contributors by points
+        List<Map<String, Object>> topContributors = new java.util.ArrayList<>();
+        for (Object[] row : contributionRepository.topContributors(userId)) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("contributor", row[0]);
+            entry.put("points", row[1]);
+            topContributors.add(entry);
+        }
+        stats.put("topContributors", topContributors);
+
+        // Contributions per repository
+        List<Map<String, Object>> byRepo = new java.util.ArrayList<>();
+        for (Object[] row : contributionRepository.countByRepository(userId)) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("repository", row[0]);
+            entry.put("contributions", row[1]);
+            byRepo.add(entry);
+        }
+        stats.put("byRepository", byRepo);
+
+        return stats;
     }
 
     private ContributionDto toDto(Contribution c) {

@@ -7,7 +7,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
+import com.github.analyzer.service.UserService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -15,6 +18,13 @@ import java.util.List;
 public class ContributionController {
 
     private final ContributionService contributionService;
+    private final UserService userService;
+
+    @GetMapping("/contributions/stats")
+    public ResponseEntity<Map<String, Object>> getStats(@AuthenticationPrincipal UserDetails userDetails) {
+        Long userId = userService.getUser(userDetails.getUsername()).getId();
+        return ResponseEntity.ok(contributionService.getStats(userId));
+    }
 
     @GetMapping("/repositories/{repoId}/contributions")
     public ResponseEntity<List<ContributionDto>> getByRepo(@PathVariable Long repoId) {

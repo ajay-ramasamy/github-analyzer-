@@ -30,4 +30,13 @@ public interface ContributionRepository extends JpaRepository<Contribution, Long
 
     @Query("SELECT COUNT(c) FROM Contribution c JOIN c.repository r WHERE r.user.id = :userId")
     Long countByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT c.type, COUNT(c) FROM Contribution c JOIN c.repository r WHERE r.user.id = :userId GROUP BY c.type")
+    List<Object[]> countByType(@Param("userId") Long userId);
+
+    @Query("SELECT c.contributor, SUM(c.points) FROM Contribution c JOIN c.repository r WHERE r.user.id = :userId GROUP BY c.contributor ORDER BY SUM(c.points) DESC")
+    List<Object[]> topContributors(@Param("userId") Long userId);
+
+    @Query("SELECT r.name, COUNT(c) FROM Contribution c JOIN c.repository r WHERE r.user.id = :userId GROUP BY r.name ORDER BY COUNT(c) DESC")
+    List<Object[]> countByRepository(@Param("userId") Long userId);
 }
