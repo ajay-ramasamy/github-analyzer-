@@ -2,6 +2,8 @@ package com.github.analyzer.service;
 
 import com.github.analyzer.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import java.time.Year;
 import java.util.*;
@@ -16,6 +18,7 @@ public class AnalyticsService {
     private final RepositoryRepository repositoryRepository;
     private final UserService userService;
 
+    @Cacheable(value = "analytics", key = "#email")
     public Map<String, Object> getDashboard(String email) {
         Long userId = userService.getUser(email).getId();
         int currentYear = Year.now().getValue();
@@ -29,6 +32,11 @@ public class AnalyticsService {
         result.put("dailyActivityHeatmap", dailyActivity(userId, currentYear));
 
         return result;
+    }
+
+    @CacheEvict(value = "analytics", key = "#email")
+    public void evictDashboardCache(String email) {
+        // Called after contributions/issues/PRs are created or synced
     }
 
     private List<Map<String, Object>> contributionsPerMonth(Long userId, int year) {

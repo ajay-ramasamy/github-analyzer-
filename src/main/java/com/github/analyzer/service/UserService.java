@@ -5,6 +5,7 @@ import com.github.analyzer.entity.User;
 import com.github.analyzer.exception.AppException;
 import com.github.analyzer.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -17,11 +18,12 @@ public class UserService {
     private final RepositoryRepository repositoryRepository;
     private final ContributionRepository contributionRepository;
 
+    @Cacheable(value = "userProfiles", key = "#email")
     public UserProfileDto getProfile(String email) {
-        User user = getUser(email);
-        return buildProfile(user);
+        return buildProfile(getUser(email));
     }
 
+    @CacheEvict(value = "userProfiles", key = "#email")
     public UserProfileDto updateProfile(String email, String username, String profilePicture, String githubUsername) {
         User user = getUser(email);
         if (username != null) user.setUsername(username);
@@ -31,16 +33,17 @@ public class UserService {
         return buildProfile(user);
     }
 
+    @Cacheable(value = "leaderboard", key = "'all'")
     public List<UserProfileDto> getLeaderboard() {
         return userRepository.findAll().stream()
                 .map(this::buildProfile)
                 .sorted((a, b) -> Long.compare(
                         b.getTotalPoints() == null ? 0 : b.getTotalPoints(),
                         a.getTotalPoints() == null ? 0 : a.getTotalPoints()))
-                .peek(p -> p.setRank(null)) // rank is set below
                 .toList();
     }
 
+    @CacheEvict(value = "userProfiles", key = "#email")
     public void connectGitHub(String email, String githubToken, String githubUsername) {
         User user = getUser(email);
         if (githubToken != null) user.setGithubToken(githubToken);

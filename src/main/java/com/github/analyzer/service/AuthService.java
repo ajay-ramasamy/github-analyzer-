@@ -20,10 +20,14 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final EmailService emailService;
+    private final BloomFilterService bloomFilterService;
 
     public void register(RegisterRequest req) {
-        if (userRepository.existsByEmail(req.getEmail()))
-            throw new AppException("Email already in use", HttpStatus.BAD_REQUEST);
+        // Bloom filter fast-path: only query DB if bloom filter says it might exist
+        if (bloomFilterService.mightUserEmailExist(req.getEmail())) {
+            if (userRepository.existsByEmail(req.getEmail()))
+                throw new AppException("Email already in use", HttpStatus.BAD_REQUEST);
+        }
         if (userRepository.existsByUsername(req.getUsername()))
             throw new AppException("Username already taken", HttpStatus.BAD_REQUEST);
 
@@ -33,6 +37,9 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setEmailVerificationToken(UUID.randomUUID().toString());
         userRepository.save(user);
+
+        // Add to bloom filter after successful registration
+        bloomFilterService.addUserEmail(req.getEmail());
 
         emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerificationToken());
     }

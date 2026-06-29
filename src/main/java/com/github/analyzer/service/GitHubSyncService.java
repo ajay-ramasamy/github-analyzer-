@@ -23,6 +23,8 @@ public class GitHubSyncService {
     private final ContributionRepository contributionRepository;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final BloomFilterService bloomFilterService;
+    private final AnalyticsService analyticsService;
 
     @Value("${github.api.base-url}")
     private String githubBaseUrl;
@@ -39,20 +41,29 @@ public class GitHubSyncService {
         JsonNode repos = fetch(githubBaseUrl + "/users/" + githubUsername + "/repos?per_page=100", token);
         List<Repository> saved = new ArrayList<>();
         for (JsonNode node : repos) {
+            String githubUrl = node.path("html_url").asText();
+            // Bloom filter: skip if this GitHub URL was already imported
+            if (bloomFilterService.mightGithubUrlExist(githubUrl)) continue;
             Repository repo = new Repository();
             repo.setName(node.path("name").asText());
             repo.setOwner(node.path("owner").path("login").asText());
-            repo.setGithubUrl(node.path("html_url").asText());
+            repo.setGithubUrl(githubUrl);
             repo.setLanguage(node.path("language").asText(null));
             repo.setDescription(node.path("description").asText(null));
             repo.setStars(node.path("stargazers_count").asInt(0));
             repo.setForks(node.path("forks_count").asInt(0));
             repo.setWatchers(node.path("watchers_count").asInt(0));
             repo.setUser(user);
-            saved.add(repositoryRepository.save(repo));
+            Repository savedRepo = repositoryRepository.save(repo);
+            bloomFilterService.addRepository(savedRepo.getId());
+            bloomFilterService.addGithubUrl(githubUrl);
+            saved.add(savedRepo);
         }
-        notificationService.notifyRepoOwner(saved.isEmpty() ? null : saved.get(0).getId(),
-                "REPO_UPDATED", "Repositories imported from GitHub");
+        if (!saved.isEmpty()) {
+            notificationService.notifyRepoOwner(saved.get(0).getId(),
+                    "REPO_UPDATED", "Repositories imported from GitHub");
+            analyticsService.evictDashboardCache(email);
+        }
         return saved;
     }
 

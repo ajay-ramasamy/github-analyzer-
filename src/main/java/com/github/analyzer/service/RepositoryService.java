@@ -6,6 +6,7 @@ import com.github.analyzer.entity.User;
 import com.github.analyzer.exception.AppException;
 import com.github.analyzer.repository.RepositoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -16,28 +17,41 @@ public class RepositoryService {
 
     private final RepositoryRepository repositoryRepository;
     private final UserService userService;
+    private final BloomFilterService bloomFilterService;
 
+    @Cacheable(value = "repositories", key = "#email")
     public List<RepositoryDto> getAll(String email) {
         return repositoryRepository.findByUserId(userService.getUser(email).getId())
                 .stream().map(this::toDto).toList();
     }
 
+    @Cacheable(value = "repositories", key = "#id + ':' + #email")
     public RepositoryDto getById(Long id, String email) {
+        // Bloom filter fast-path: if not in bloom filter, definitely doesn't exist
+        if (!bloomFilterService.mightRepositoryExist(id)) {
+            throw new AppException("Repository not found", HttpStatus.NOT_FOUND);
+        }
         return toDto(getOwned(id, email));
     }
 
+    @CacheEvict(value = "repositories", key = "#email")
     public RepositoryDto create(RepositoryDto dto, String email) {
         User user = userService.getUser(email);
         Repository repo = fromDto(dto, new Repository());
         repo.setUser(user);
-        return toDto(repositoryRepository.save(repo));
+        Repository saved = repositoryRepository.save(repo);
+        bloomFilterService.addRepository(saved.getId());
+        if (saved.getGithubUrl() != null) bloomFilterService.addGithubUrl(saved.getGithubUrl());
+        return toDto(saved);
     }
 
+    @CacheEvict(value = "repositories", allEntries = true)
     public RepositoryDto update(Long id, RepositoryDto dto, String email) {
         Repository repo = getOwned(id, email);
         return toDto(repositoryRepository.save(fromDto(dto, repo)));
     }
 
+    @CacheEvict(value = "repositories", allEntries = true)
     public void delete(Long id, String email) {
         repositoryRepository.delete(getOwned(id, email));
     }
@@ -57,6 +71,9 @@ public class RepositoryService {
     }
 
     public Repository getEntity(Long id) {
+        if (!bloomFilterService.mightRepositoryExist(id)) {
+            throw new AppException("Repository not found", HttpStatus.NOT_FOUND);
+        }
         return repositoryRepository.findById(id)
                 .orElseThrow(() -> new AppException("Repository not found", HttpStatus.NOT_FOUND));
     }

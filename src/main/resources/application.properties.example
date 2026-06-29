@@ -25,6 +25,21 @@ spring.mail.password=YOUR_GMAIL_APP_PASSWORD
 spring.mail.properties.mail.smtp.auth=true
 spring.mail.properties.mail.smtp.starttls.enable=true
 
+# Redis
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+
+# Cache TTL (seconds)
+app.cache.ttl=300
+
+# Rate Limiting
+app.rate-limit.requests=100
+app.rate-limit.window-seconds=60
+
+# Bloom Filter
+app.bloom-filter.expected-insertions=10000
+app.bloom-filter.false-positive-probability=0.01
+
 # Swagger
 springdoc.api-docs.path=/api-docs
 springdoc.swagger-ui.path=/swagger-ui.html
